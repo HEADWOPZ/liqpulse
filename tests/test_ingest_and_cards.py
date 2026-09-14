@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+from liqpulse.backtest import run_backtest
+from liqpulse.brief import build_brief, render_cards
+from liqpulse.cards import generate_and_store, load_latest
+from liqpulse.db import latest_snapshots, get_session_factory
+from liqpulse.ingest.mock import fetch_mock
+from liqpulse.ingest.runner import run_ingest
+
+
+def test_mock_ingest_persists(db_path):
+    snaps, report = run_ingest(mode="mock", sources=["mock"], symbols=["BTC", "ETH", "SOL"])
+    assert report.used_mock_fallback
+    assert len(snaps) == 3
+    SessionLocal = get_session_factory()
+    with SessionLocal() as session:
+        stored = latest_snapshots(session)
+    assert {s.symbol for s in stored} == {"BTC", "ETH", "SOL"}
+
+
+def test_cards_roundtrip(db_path):
+    snaps, _ = run_ingest(mode="mock")
+    cards = generate_and_store(snaps)
+    assert cards
+    assert all(c.features for c in cards)
+    loaded = load_latest(20)
+    assert loaded
+    assert loaded[0].id is not None
+    text = render_cards(loaded)
+    assert "funding_8h" in text or "vol_expansion" in text
+    brief = build_brief("morning", loaded)
+    assert "Not financial advice" in brief
+
+
+def test_live_okx_or_fallback(db_path):
+    snaps, report = run_ingest(mode="auto", sources=["okx"], symbols=["BTC"])
+    assert snaps
+    assert report.snapshot_count >= 1
+    if "okx" in report.sources_ok:
+        assert snaps[0].venue == "okx"
+        assert snaps[0].mark_price and snaps[0].mark_price > 0
+        assert snaps[0].last_funding is not None
+    else:
+        assert report.used_mock_fallback
+
+
+def test_backtest_on_mock_tape(db_path):
+    run_ingest(mode="mock")
+    run_ingest(mode="mock")
+    result = run_backtest()
+    assert result.notes
+    # Two identical mock snapshots → mark pnl is ~0 even if a fill exists.
+    assert result.ending_equity == result.ending_equity

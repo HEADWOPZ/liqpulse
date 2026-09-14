@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LiqPulse desk</title>
+  <link rel="stylesheet" href="/static/desk.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="mark">LP</div>
+      <div>
+        <h1>LiqPulse</h1>
+        <p class="tag">liquidation · carry · paper desk <span class="ver">v{{ version }}</span></p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="refresh" type="button">ingest + score</button>
+      <span id="status" class="status">idle</span>
+    </div>
+  </header>
+
+  <section class="disclaimer">{{ disclaimer }} No live order routing. Heuristics are listed on each card.</section>
+
+  <main class="grid">
+    <section class="col cards">
+      <h2>Opportunity cards</h2>
+      {% if not cards %}
+      <div class="empty">No cards yet. Run <code>liqpulse brief morning</code> or hit ingest.</div>
+      {% endif %}
+      {% for card in cards %}
+      <article class="card {{ card.card_type }}">
+        <div class="card-head">
+          <span class="type">{{ card.card_type }}</span>
+          <span class="sym">{{ card.symbol }} <em>{{ card.venue }}</em></span>
+          <span class="score">{{ '%.1f'|format(card.score) }}</span>
+        </div>
+        <h3>{{ card.title }}</h3>
+        <p class="thesis">{{ card.thesis }}</p>
+        <div class="meta">bias <strong>{{ card.side_bias }}</strong> · {{ card.horizon }}</div>
+        <details>
+          <summary>feature breakdown</summary>
+          <table>
+            <thead><tr><th>feature</th><th>value</th><th>contrib</th></tr></thead>
+            <tbody>
+            {% for f in card.features %}
+              <tr>
+                <td>{{ f.name }}<div class="note">{{ f.note }}</div></td>
+                <td class="num">{{ '%.6g'|format(f.value) }} {{ f.unit }}</td>
+                <td class="num">{{ '%.1f'|format(f.contribution) }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </details>
+      </article>
+      {% endfor %}
+    </section>
+
+    <aside class="col side">
+      <section class="panel">
+        <h2>Paper ledger</h2>
+        <dl class="kv">
+          <div><dt>cash</dt><dd>{{ '%.2f'|format(ledger.cash) }}</dd></div>
+          <div><dt>equity</dt><dd>{{ '%.2f'|format(ledger.equity) }}</dd></div>
+          <div><dt>realized</dt><dd>{{ '%.2f'|format(ledger.realized_pnl) }}</dd></div>
+          <div><dt>unrealized</dt><dd>{{ '%.2f'|format(ledger.unrealized_pnl) }}</dd></div>
+        </dl>
+        {% if ledger.positions %}
+        <table class="tight">
+          <thead><tr><th>#</th><th>pos</th><th>uPnL</th></tr></thead>
+          <tbody>
+          {% for p in ledger.positions %}
+            <tr>
+              <td>{{ p.id }}</td>
+              <td>{{ p.side }} {{ '%.4g'|format(p.qty) }} {{ p.symbol }}</td>
+              <td class="num">{{ '%.2f'|format(p.unrealized_pnl) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="muted">No open paper lots. <code>liqpulse paper suggest</code></p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Latest snapshots</h2>
+        <table class="tight">
+          <thead><tr><th>venue</th><th>sym</th><th>mark</th><th>8h fund</th></tr></thead>
+          <tbody>
+          {% for s in snapshots %}
+            <tr>
+              <td>{{ s.venue }}</td>
+              <td>{{ s.symbol }}</td>
+              <td class="num">{% if s.mark_price %}{{ '%.4g'|format(s.mark_price) }}{% else %}—{% endif %}</td>
+              <td class="num">{% if s.last_funding %}{{ '%.5f'|format(s.last_funding * (8 / (s.funding_period_hours or 8))) }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </aside>
+  </main>
+
+  <script src="/static/desk.js"></script>
+</body>
+</html>
