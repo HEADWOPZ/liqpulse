@@ -9,6 +9,7 @@ def test_open_mark_close_pnl(db_path):
     view = status()
     assert view.open_count == 1
     assert view.cash == 100_000 - 10_000
+    assert abs(view.equity - 100_000) < 1e-6
     assert abs(view.unrealized_pnl) < 1e-9
 
     marked = mark_positions({"BTC": 110_000})

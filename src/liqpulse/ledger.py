@@ -52,10 +52,12 @@ def status() -> LedgerView:
         rows = list(session.scalars(select(PositionRow).where(PositionRow.status == "open")))
         views = [_position_view(r) for r in rows]
         unreal = sum(v.unrealized_pnl for v in views)
+        # Equity is mark-to-market: starting + realized + open uPnL.
+        # Cash is unallocated paper; open lots reserve entry notional.
         return LedgerView(
             cash=acct.cash,
             starting_cash=acct.starting_cash,
-            equity=acct.cash + unreal,
+            equity=acct.starting_cash + acct.realized_pnl + unreal,
             realized_pnl=acct.realized_pnl,
             unrealized_pnl=unreal,
             open_count=len(views),

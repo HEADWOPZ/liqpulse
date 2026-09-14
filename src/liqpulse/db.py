@@ -284,8 +284,19 @@ def all_snapshots(session: Session, limit: int = 2000) -> list[MarketSnapshot]:
 
 
 def latest_cards(session: Session, limit: int = 40) -> list[OpportunityCard]:
-    rows = session.scalars(select(CardRow).order_by(CardRow.ts.desc(), CardRow.score.desc()).limit(limit)).all()
-    return [card_from_row(r) for r in rows]
+    rows = session.scalars(select(CardRow).order_by(CardRow.ts.desc(), CardRow.score.desc()).limit(400)).all()
+    seen: set[tuple[str, str, str]] = set()
+    out: list[OpportunityCard] = []
+    for row in rows:
+        key = (row.venue, row.symbol, row.card_type)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(card_from_row(row))
+        if len(out) >= limit:
+            break
+    out.sort(key=lambda c: (-c.score, c.symbol, c.venue))
+    return out
 
 
 def latest_journal(session: Session, limit: int = 20) -> list[JournalRow]:

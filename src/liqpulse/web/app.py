@@ -27,9 +27,9 @@ def create_app() -> FastAPI:
     def desk(request: Request) -> HTMLResponse:
         payload = desk_payload()
         return templates.TemplateResponse(
+            request,
             "desk.html",
             {
-                "request": request,
                 "version": __version__,
                 "cards": payload["cards"],
                 "snapshots": payload["snapshots"],

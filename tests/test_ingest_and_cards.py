@@ -18,6 +18,15 @@ def test_mock_ingest_persists(db_path):
     assert {s.symbol for s in stored} == {"BTC", "ETH", "SOL"}
 
 
+def test_latest_cards_dedupe_per_venue_symbol_type(db_path):
+    snaps, _ = run_ingest(mode="mock")
+    generate_and_store(snaps)
+    generate_and_store(snaps)
+    loaded = load_latest(50)
+    keys = [(c.venue, c.symbol, c.card_type) for c in loaded]
+    assert keys == list(dict.fromkeys(keys))
+
+
 def test_cards_roundtrip(db_path):
     snaps, _ = run_ingest(mode="mock")
     cards = generate_and_store(snaps)
@@ -45,9 +54,20 @@ def test_live_okx_or_fallback(db_path):
 
 
 def test_backtest_on_mock_tape(db_path):
-    run_ingest(mode="mock")
-    run_ingest(mode="mock")
+    from datetime import datetime, timezone, timedelta
+
+    from liqpulse.db import persist_snapshots, get_session_factory
+    from liqpulse.ingest.mock import fetch_mock
+
+    t0 = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+    first = fetch_mock(["BTC"], ts=t0)
+    second = fetch_mock(["BTC"], ts=t0 + timedelta(hours=8))
+    second[0].mark_price = (first[0].mark_price or 0) * 1.01
+    SessionLocal = get_session_factory()
+    with SessionLocal() as session:
+        persist_snapshots(session, first + second)
     result = run_backtest()
     assert result.notes
-    # Two identical mock snapshots → mark pnl is ~0 even if a fill exists.
-    assert result.ending_equity == result.ending_equity
+    assert result.trades
+    assert result.trades[0].side == "short"
+    assert result.trades[0].pnl < 0
