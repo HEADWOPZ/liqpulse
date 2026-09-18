@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from liqpulse.backtest import run_backtest
 from liqpulse.brief import build_brief, render_cards
 from liqpulse.cards import generate_and_store, load_latest
 from liqpulse.db import latest_snapshots, get_session_factory
-from liqpulse.ingest.mock import fetch_mock
 from liqpulse.ingest.runner import run_ingest
 
 
@@ -41,6 +44,11 @@ def test_cards_roundtrip(db_path):
     assert "Not financial advice" in brief
 
 
+@pytest.mark.network
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true" or os.environ.get("LIQPULSE_FEED", "").lower() == "mock",
+    reason="CI / mock feed stays offline; no live venue calls",
+)
 def test_live_okx_or_fallback(db_path):
     snaps, report = run_ingest(mode="auto", sources=["okx"], symbols=["BTC"])
     assert snaps
